@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B League Draft</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Animations globales */
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes slideInFromLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+        }
+
+        /* Styles de base améliorés */
+        .draft-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 25px;
+            padding: 25px;
+            height: calc(100vh - 100px);
+            animation: fadeInScale 0.6s ease-out;
+        }
+
+        .draft-header h1 {
+            background: linear-gradient(45deg, #ffd700, #ff6b6b);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            animation: fadeInScale 0.8s ease-out;
+        }
+
+        .current-pick {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(29, 66, 138, 0.9), rgba(200, 16, 46, 0.9));
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            animation: fadeInScale 0.6s ease-out;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .current-pick:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .teams-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .teams-info:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.02);
+        }
+
+        .next-team {
+            border: 2px solid rgba(255, 215, 0, 0.5);
+            animation: glow 2s infinite;
+        }
+
+        .team-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #ffd700;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+        }
+
+        .team-logo:hover {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .available-players {
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 20px;
+            padding: 20px;
+            height: 100%;
+            overflow-y: auto;
+            animation: slideInFromLeft 0.6s ease-out;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .player-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            animation: fadeInScale 0.5s ease-out backwards;
+        }
+
+        .player-item:hover {
+            transform: translateX(10px);
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .draft-board {
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 20px;
+            padding: 25px;
+            animation: fadeInScale 0.6s ease-out;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .pick-history {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .pick-card {
+            background: linear-gradient(135deg, rgba(29, 66, 138, 0.9), rgba(26, 54, 93, 0.9));
+            border-radius: 15px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 20px;
+            align-items: center;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pick-card.highlight::before {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            background: conic-gradient(
+                transparent 0deg,
+                transparent 30deg,
+                rgba(255, 215, 0, 0.5) 60deg,
+                rgba(255, 215, 0, 0.8) 180deg,
+                rgba(255, 215, 0, 0.5) 300deg,
+                transparent 330deg,
+                transparent 360deg
+            );
+            animation: rotateGlow 2s linear;
+            top: -25%;
+            left: -25%;
+            opacity: 0;
+        }
+
+        @keyframes rotateGlow {
+            0% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .pick-card.highlight {
+            animation: cardPulse 2s ease-out;
+        }
+
+        @keyframes cardPulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            }
+        }
+
+        .pick-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .pick-card:hover::before {
+            opacity: 1;
+        }
+
+        .pick-number {
+            background: linear-gradient(135deg, #ffd700, #ffa500);
+            color: #000;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.4em;
+            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .pick-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .pick-info h3 {
+            font-size: 1.4em;
+            margin: 0;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .pick-details {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .team-logo-small {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+            object-fit: cover;
+        }
+
+        .pick-round {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .pick-position {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .pick-team {
+            color: #ffd700;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        .chat-section {
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 20px;
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 10px;
+        }
+
+        .chat-message {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .chat-message.admin {
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Scrollbar personnalisé */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 215, 0, 0.3);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 215, 0, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: #0c1015;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .draft-header {
+            background: linear-gradient(to right, #1d428a, #c8102e);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .draft-header h1 {
+            font-size: 2.5em;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .draft-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 100px);
+        }
+
+        .current-pick {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, rgba(29, 66, 138, 0.9), rgba(200, 16, 46, 0.9));
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .teams-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            margin-bottom: 10px;
+        }
+
+        .next-team {
+            border: 2px solid rgba(255, 215, 0, 0.3);
+            position: relative;
+        }
+
+        .next-team::before {
+            content: "Prochain à choisir";
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffd700;
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .team-display {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .team-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #ffd700;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+            object-fit: cover;
+        }
+
+        .available-players {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .available-players h2 {
+            color: #ffd700;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .players-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .draft-board {
+            background: rgba(29, 66, 138, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            height: 100%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .draft-board h2 {
+            color: #ffd700;
+            margin-bottom: 20px;
+            font-size: 2em;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .pick-history {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 10px;
+        }
+
+        .pick-card {
+            background: linear-gradient(135deg, rgba(29, 66, 138, 0.9), rgba(26, 54, 93, 0.9));
+            border-radius: 15px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 20px;
+            align-items: center;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pick-card.highlight::before {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            background: conic-gradient(
+                transparent 0deg,
+                transparent 30deg,
+                rgba(255, 215, 0, 0.5) 60deg,
+                rgba(255, 215, 0, 0.8) 180deg,
+                rgba(255, 215, 0, 0.5) 300deg,
+                transparent 330deg,
+                transparent 360deg
+            );
+            animation: rotateGlow 2s linear;
+            top: -25%;
+            left: -25%;
+            opacity: 0;
+        }
+
+        @keyframes rotateGlow {
+            0% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .pick-card.highlight {
+            animation: cardPulse 2s ease-out;
+        }
+
+        @keyframes cardPulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            }
+        }
+
+        .pick-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .pick-card:hover::before {
+            opacity: 1;
+        }
+
+        .pick-number {
+            background: linear-gradient(135deg, #ffd700, #ffa500);
+            color: #000;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.4em;
+            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .pick-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .pick-info h3 {
+            font-size: 1.4em;
+            margin: 0;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .pick-details {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .team-logo-small {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+            object-fit: cover;
+        }
+
+        .pick-round {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .pick-position {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .pick-team {
+            color: #ffd700;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        .chat-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 10px;
+        }
+
+        .chat-message {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .chat-message.admin {
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Style pour le message de bienvenue */
+        .welcome-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, rgba(29, 66, 138, 0.95), rgba(200, 16, 46, 0.95));
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 1000;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            border: 2px solid #ffd700;
+            opacity: 0;
+            animation: welcomeIn 1s ease forwards;
+        }
+
+        .welcome-message.hide {
+            animation: welcomeOut 1s ease forwards;
+        }
+
+        @keyframes welcomeIn {
+            from { 
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to { 
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        @keyframes welcomeOut {
+            from { 
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+            to { 
+                opacity: 0;
+                transform: translate(-50%, -40%);
+            }
+        }
+
+        .welcome-message h2 {
+            color: #ffd700;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .welcome-message p {
+            color: white;
+            font-size: 1.2em;
+            line-height: 1.6;
+            margin: 15px 0;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Couleurs spécifiques pour chaque équipe */
+        .pick-card[data-team="WILD HOOPS"] {
+            background: linear-gradient(135deg, rgba(29, 66, 138, 0.8), rgba(29, 66, 138, 0.6));
+        }
+
+        .pick-card[data-team="THE UNDEFEATED"] {
+            background: linear-gradient(135deg, rgba(85, 37, 130, 0.8), rgba(85, 37, 130, 0.6));
+        }
+
+        .pick-card[data-team="Fear of God Athletics"] {
+            background: linear-gradient(135deg, rgba(0, 122, 51, 0.8), rgba(0, 122, 51, 0.6));
+        }
+
+        .pick-card[data-team="Ours Boys Academy"] {
+            background: linear-gradient(135deg, rgba(152, 0, 46, 0.8), rgba(152, 0, 46, 0.6));
+        }
+
+        /* Animation pour le numéro de pick */
+        .pick-number {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pick-number::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, transparent, rgba(255, 215, 0, 0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* Styles responsives pour les appareils mobiles */
+        @media screen and (max-width: 768px) {
+            .draft-container {
+                grid-template-columns: 1fr;
+                height: auto;
+                padding: 10px;
+                gap: 15px;
+            }
+
+            .draft-header h1 {
+                font-size: 24px;
+                text-align: center;
+                padding: 10px;
+            }
+
+            .current-pick {
+                padding: 15px;
+                margin: 0 auto 15px;
+            }
+
+            .teams-info {
+                padding: 12px;
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .team-logo {
+                width: 50px;
+                height: 50px;
+            }
+
+            .available-players {
+                max-height: 300px;
+                overflow-y: auto;
+            }
+
+            .pick-card {
+                width: calc(100% - 20px);
+                margin: 10px;
+                padding: 12px;
+            }
+
+            .pick-history {
+                max-height: 200px;
+                overflow-y: auto;
+            }
+
+            .chat-container {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                z-index: 1000;
+                background: rgba(12, 16, 21, 0.95);
+                padding: 10px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .chat-messages {
+                max-height: 150px;
+                overflow-y: auto;
+            }
+
+            .chat-input {
+                width: calc(100% - 20px);
+                margin: 10px;
+            }
+
+            .player-card {
+                width: 100%;
+                margin: 5px 0;
+            }
+
+            .player-stats {
+                font-size: 0.9em;
+            }
+
+            /* Amélioration de l'interface tactile */
+            button, .pick-card, .player-card {
+                min-height: 44px; /* Taille minimale pour les éléments tactiles */
+            }
+
+            /* Ajustement des marges et du padding pour une meilleure lisibilité */
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+                overflow-x: hidden;
+            }
+
+            /* Amélioration de la navigation mobile */
+            .mobile-nav {
+                display: flex;
+                justify-content: space-around;
+                padding: 10px;
+                background: rgba(12, 16, 21, 0.95);
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+            }
+
+            .mobile-nav button {
+                padding: 8px 15px;
+                border-radius: 20px;
+                background: linear-gradient(135deg, #1d428a, #c8102e);
+                border: none;
+                color: white;
+                font-weight: bold;
+            }
+
+            /* Ajustement des animations pour les performances mobiles */
+            @media (prefers-reduced-motion: reduce) {
+                * {
+                    animation: none !important;
+                    transition: none !important;
+                }
+            }
+        }
+
+        /* Styles pour les très petits écrans */
+        @media screen and (max-width: 480px) {
+            .draft-header h1 {
+                font-size: 20px;
+            }
+
+            .pick-card {
+                font-size: 14px;
+            }
+
+            .team-logo {
+                width: 40px;
+                height: 40px;
+            }
+
+            .chat-messages {
+                max-height: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="draft-header">
+        <h1>B League Draft 2024</h1>
+    </header>
+
+    <div class="draft-container">
+        <section class="available-players">
+            <h2>Joueurs Disponibles</h2>
+            <div id="availablePlayers" class="players-list">
+                <!-- Liste des joueurs disponibles -->
+            </div>
+        </section>
+
+        <main class="draft-main">
+            <div class="current-pick">
+                <div id="currentTeamDisplay" class="teams-info">
+                    <div class="team-display">
+                        <!-- L'équipe actuelle sera affichée ici -->
+                    </div>
+                </div>
+                <div id="nextTeamDisplay" class="teams-info next-team">
+                    <div class="team-display">
+                        <!-- La prochaine équipe sera affichée ici -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="draft-board">
+                <h2>Draft Board</h2>
+                <div id="pickHistory" class="pick-history">
+                    <!-- Historique des picks -->
+                </div>
+            </div>
+        </main>
+
+        <section class="chat-section">
+            <div id="chatMessages" class="chat-messages">
+                <!-- Messages du chat -->
+            </div>
+            <div class="chat-input-container">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Envoyer un message...">
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        // Afficher le message de bienvenue
+        window.addEventListener('DOMContentLoaded', () => {
+            const welcomeDiv = document.createElement('div');
+            welcomeDiv.className = 'welcome-message';
+            welcomeDiv.innerHTML = `
+                <h2 style="color: #ffd700; margin-bottom: 15px; font-size: 2em">Bienvenue à la Draft B League 2024!</h2>
+                <p style="font-size: 1.5em; margin-bottom: 10px">Vous assistez à la toute première draft de la B League.</p>
+                <p style="font-size: 1.2em; margin: 15px 0">Installez-vous confortablement et attendez le début de la draft.</p>
+                <p style="font-size: 1.2em; margin: 15px 0">L'administrateur lancera bientôt l'événement.</p>
+            `;
+            document.body.appendChild(welcomeDiv);
+
+            // Faire disparaître le message après 5 secondes
+            setTimeout(() => {
+                welcomeDiv.classList.add('hide');
+                setTimeout(() => welcomeDiv.remove(), 1000);
+            }, 5000);
+        });
+
+        // Fonction pour gérer les erreurs d'images
+        function handleImageError(img) {
+            // Éviter une boucle infinie en vérifiant si l'image est déjà le placeholder
+            if (!img.src.endsWith('placeholder.jpg')) {
+                img.src = '/static/images/placeholder.jpg';
+            } else {
+                // Si même le placeholder ne charge pas, on cache l'image
+                img.style.display = 'none';
+            }
+            img.onerror = null; // Empêcher les appels récursifs
+        }
+
+        // Fonction pour créer une balise img avec gestion d'erreur
+        function createTeamLogo(logoUrl, teamName, className) {
+            const img = document.createElement('img');
+            img.src = `/static/images/${logoUrl}`;
+            img.alt = `${teamName} logo`;
+            img.className = className;
+            img.onerror = () => handleImageError(img);
+            return img;
+        }
+
+        function showAnnouncement(message, duration) {
+            const announcement = document.createElement('div');
+            announcement.className = 'announcement';
+            announcement.innerHTML = message;
+            document.body.appendChild(announcement);
+
+            setTimeout(() => {
+                announcement.style.animation = 'fadeOut 0.5s ease-out forwards';
+                setTimeout(() => announcement.remove(), 500);
+            }, duration);
+        }
+
+        function addChatMessage(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${data.user === 'Admin' ? 'admin' : ''}`;
+            messageDiv.innerHTML = `<strong>${data.user}:</strong> ${data.message}`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        const availablePlayersList = document.getElementById('availablePlayers');
+        const pickHistory = document.getElementById('pickHistory');
+        const currentTeamDisplay = document.getElementById('currentTeamDisplay');
+        const nextTeamDisplay = document.getElementById('nextTeamDisplay');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && chatInput.value.trim()) {
+                socket.emit('chat_message', { message: chatInput.value.trim() });
+                chatInput.value = '';
+            }
+        });
+
+        socket.on('draft_update', (data) => {
+            console.log('Received draft update:', data);
+            
+            // Mise à jour des joueurs disponibles
+            const tempContainer = document.createElement('div');
+            tempContainer.innerHTML = data.availablePlayers.map((player, index) => `
+                <div class="player-item" style="animation-delay: ${index * 0.05}s">
+                    <strong>${player.name}</strong>
+                    <div class="player-stats">${player.position} - ${player.stats}</div>
+                </div>
+            `).join('');
+
+            // Animation de transition pour les joueurs
+            const oldPlayers = availablePlayersList.children;
+            Array.from(oldPlayers).forEach((player, index) => {
+                player.style.animation = `fadeOut 0.3s ease forwards ${index * 0.05}s`;
+            });
+
+            setTimeout(() => {
+                availablePlayersList.innerHTML = tempContainer.innerHTML;
+            }, oldPlayers.length * 50 + 300);
+
+            // Mise à jour de l'historique avec animation
+            const historyContainer = document.createElement('div');
+            historyContainer.innerHTML = data.teams.map((team, teamIndex) => 
+                team.players.map((player, playerIndex) => {
+                    const pickCard = document.createElement('div');
+                    pickCard.className = `pick-card ${playerIndex === team.players.length - 1 ? 'new' : ''}`;
+                    pickCard.style.animation = `slideIn 0.5s ease forwards ${(teamIndex + playerIndex) * 0.1}s`;
+                    
+                    const pickInfo = document.createElement('div');
+                    pickInfo.className = 'pick-info';
+                    pickInfo.innerHTML = `
+                        <h3>${player.name}</h3>
+                        <div class="pick-details">
+                            <span class="pick-round">Round ${Math.floor(playerIndex/data.teams.length) + 1}</span>
+                            <span class="pick-position">${player.position}</span>
+                            <span class="pick-team">${team.name}</span>
+                        </div>
+                    `;
+                    
+                    const teamLogo = createTeamLogo(team.logo_url, team.name, 'team-logo-small');
+                    pickInfo.querySelector('.pick-details').prepend(teamLogo);
+                    
+                    pickCard.appendChild(pickInfo);
+                    return pickCard.outerHTML;
+                }).join('')
+            ).join('');
+
+            // Animation de transition pour l'historique
+            const oldHistory = pickHistory.children;
+            Array.from(oldHistory).forEach((item, index) => {
+                item.style.animation = `slideOut 0.3s ease forwards ${index * 0.05}s`;
+            });
+
+            setTimeout(() => {
+                pickHistory.innerHTML = historyContainer.innerHTML;
+            }, oldHistory.length * 50 + 300);
+        });
+
+        socket.on('draft_teams', (data) => {
+            console.log('Received teams update:', data);
+            
+            if (data.current) {
+                const currentTeam = document.createElement('div');
+                currentTeam.className = 'team-display';
+                const currentLogo = createTeamLogo(data.current.logo_url, data.current.name, 'team-logo');
+                currentTeam.appendChild(currentLogo);
+                currentTeam.innerHTML += `
+                    <div class="team-info">
+                        <h3 class="team-name">${data.current.name}</h3>
+                        <div class="team-status">Au tour de choisir</div>
+                    </div>
+                `;
+                currentTeamDisplay.innerHTML = '';
+                currentTeamDisplay.appendChild(currentTeam);
+            }
+
+            if (data.next) {
+                const nextTeam = document.createElement('div');
+                nextTeam.className = 'team-display';
+                const nextLogo = createTeamLogo(data.next.logo_url, data.next.name, 'team-logo');
+                nextTeam.appendChild(nextLogo);
+                nextTeam.innerHTML += `
+                    <div class="team-info">
+                        <h3 class="team-name">${data.next.name}</h3>
+                    </div>
+                `;
+                nextTeamDisplay.innerHTML = '';
+                nextTeamDisplay.appendChild(nextTeam);
+            }
+        });
+
+        socket.on('draft_pick', (data) => {
+            // Créer la carte du nouveau pick
+            const pickCard = document.createElement('div');
+            pickCard.className = 'pick-card highlight';
+            pickCard.setAttribute('data-team', data.team); // Ajouter l'attribut data-team
+            pickCard.innerHTML = `
+                <div class="pick-number">#${data.pickNumber}</div>
+                <div class="pick-info">
+                    <h3 style="color: #ffd700; font-size: 1.4em; margin-bottom: 10px;">${data.player}</h3>
+                    <div class="pick-details" style="display: flex; gap: 15px; align-items: center;">
+                        ${data.team_logo ? 
+                            `<img src="/static/images/${data.team_logo}" alt="${data.team} logo" class="team-logo-small" style="width: 40px; height: 40px; border-radius: 50%;" onerror="handleImageError(this)">` 
+                            : ''}
+                        <span style="background: rgba(0, 0, 0, 0.3); padding: 5px 10px; border-radius: 5px;">${data.team}</span>
+                    </div>
+                </div>
+            `;
+
+            // Ajouter le pick à la fin de la liste
+            const pickHistory = document.getElementById('pickHistory');
+            pickHistory.appendChild(pickCard);
+
+            // Faire défiler vers le bas
+            pickHistory.scrollTop = pickHistory.scrollHeight;
+
+            // Retirer la classe highlight après l'animation
+            setTimeout(() => {
+                pickCard.classList.remove('highlight');
+            }, 2000);
+
+            // Afficher l'annonce
+            showAnnouncement(`
+                <h2 style="color: #ffd700; margin-bottom: 15px; font-size: 2em">Pick #${data.pickNumber}</h2>
+                <p style="font-size: 1.5em; margin-bottom: 10px">${data.team}</p>
+                <p style="font-size: 2em; color: #ffd700; margin: 15px 0">sélectionne</p>
+                <p style="font-size: 2.5em; color: #fff; margin: 15px 0">${data.player}</p>
+            `, 4000);
+        });
+
+        socket.on('draft_complete', () => {
+            showAnnouncement(`
+                <h2 style="color: #ffd700; margin-bottom: 15px; font-size: 2.5em">Draft Terminé!</h2>
+                <p style="font-size: 1.5em; margin: 15px 0">Félicitations à toutes les équipes!</p>
+                <p style="font-size: 1.2em; color: #888">Redirection vers la page de saison...</p>
+            `, 5000);
+            setTimeout(() => {
+                window.location.href = '/season';
+            }, 5000);
+        });
+
+        socket.on('chat_message', addChatMessage);
+
+        // Fonction pour le défilement fluide vers les sections
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B League Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .admin-header {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ffd700;
+        }
+
+        .admin-title {
+            color: #ffd700;
+            font-size: 1.5em;
+        }
+
+        .admin-controls {
+            display: flex;
+            gap: 20px;
+        }
+
+        .btn {
+            background: #ffd700;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #ffed4a;
+            transform: translateY(-2px);
+        }
+
+        .btn.danger {
+            background: #ff4444;
+            color: white;
+        }
+
+        .btn.danger:hover {
+            background: #ff6b6b;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 80px);
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            color: #ffd700;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .player-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .player-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.5s ease forwards;
+            opacity: 0;
+        }
+
+        .player-item:nth-child(1) { animation-delay: 0.1s; }
+        .player-item:nth-child(2) { animation-delay: 0.15s; }
+        .player-item:nth-child(3) { animation-delay: 0.2s; }
+        .player-item:nth-child(4) { animation-delay: 0.25s; }
+        .player-item:nth-child(5) { animation-delay: 0.3s; }
+        .player-item:nth-child(6) { animation-delay: 0.35s; }
+        .player-item:nth-child(7) { animation-delay: 0.4s; }
+        .player-item:nth-child(8) { animation-delay: 0.45s; }
+        .player-item:nth-child(9) { animation-delay: 0.5s; }
+        .player-item:nth-child(10) { animation-delay: 0.55s; }
+
+        .player-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .player-item.selected {
+            animation: selectGlow 1s ease infinite;
+        }
+
+        @keyframes selectGlow {
+            0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+            50% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+        }
+
+        .draft-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .team-card {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px;
+            min-width: 300px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .team-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
+        }
+
+        .team-logo {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 2px solid #ffd700;
+        }
+
+        .team-name {
+            color: #ffd700;
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        .team-picks {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .player-pick {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #2a2a2a;
+            padding: 8px;
+            border-radius: 4px;
+            animation: slideIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .pick-round {
+            background: #ffd700;
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+
+        .pick-name {
+            flex-grow: 1;
+            color: #fff;
+        }
+
+        .pick-pos {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .chat-message {
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .chat-message.admin {
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex-grow: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .current-pick {
+            background: rgba(255, 215, 0, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .current-pick h3 {
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        .pick-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .announcement {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .announcement.active {
+            display: block;
+            animation: fadeInScale 0.5s ease;
+        }
+
+        /* Style pour la modal de confirmation */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 300px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .modal.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="admin-header">
+        <h1 class="admin-title">B League Admin Dashboard</h1>
+        <div class="admin-controls">
+            <button id="startDraftBtn" class="btn">Démarrer le Draft</button>
+            <button id="resetDraftBtn" class="btn danger">Réinitialiser le Draft</button>
+            <a href="/admin/logout" class="btn">Déconnexion</a>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <section class="panel">
+            <h2 class="panel-title">Joueurs Disponibles</h2>
+            <div id="availablePlayers" class="player-list">
+                <!-- Liste des joueurs disponibles -->
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="current-pick">
+                <h3>Tour Actuel</h3>
+                <p id="currentTeam">En attente du début du draft...</p>
+                <div class="pick-controls">
+                    <button id="confirmPickBtn" class="btn" disabled>Confirmer la Sélection</button>
+                </div>
+            </div>
+            <h2 class="panel-title">Draft Board</h2>
+            <div id="draftBoard" class="draft-board">
+                <!-- Draft board -->
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2 class="panel-title">Chat & Annonces</h2>
+            <div class="chat-container">
+                <div id="chatMessages" class="chat-messages">
+                    <!-- Messages du chat -->
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="Envoyer un message...">
+                    <button id="sendMessageBtn" class="btn">Envoyer</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="announcement" class="announcement">
+        <!-- Annonces de draft -->
+    </div>
+
+    <!-- Modal de confirmation -->
+    <div id="resetModal" class="modal">
+        <div class="modal-content">
+            <h2 style="color: #ff4444; margin-bottom: 15px">⚠️ Attention</h2>
+            <p>Êtes-vous sûr de vouloir réinitialiser le draft ?</p>
+            <p style="color: #888; font-size: 0.9em; margin-top: 10px">Cette action est irréversible et effacera toutes les sélections actuelles.</p>
+            <div class="modal-buttons">
+                <button id="confirmResetBtn" class="btn danger">Réinitialiser</button>
+                <button id="cancelResetBtn" class="btn">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let selectedPlayer = null;
+        let currentTeam = null;
+
+        // Éléments DOM
+        const availablePlayersList = document.getElementById('availablePlayers');
+        const draftBoard = document.getElementById('draftBoard');
+        const currentTeamDisplay = document.getElementById('currentTeam');
+        const confirmPickBtn = document.getElementById('confirmPickBtn');
+        const startDraftBtn = document.getElementById('startDraftBtn');
+        const resetDraftBtn = document.getElementById('resetDraftBtn');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const announcement = document.getElementById('announcement');
+        const resetModal = document.getElementById('resetModal');
+        const confirmResetBtn = document.getElementById('confirmResetBtn');
+        const cancelResetBtn = document.getElementById('cancelResetBtn');
+
+        // Gestionnaires d'événements
+        startDraftBtn.onclick = () => {
+            socket.emit('start_draft');
+            startDraftBtn.disabled = true;
+        };
+
+        confirmPickBtn.onclick = () => {
+            if (selectedPlayer) {
+                socket.emit('make_pick', { player_id: selectedPlayer });
+                selectedPlayer = null;
+                confirmPickBtn.disabled = true;
+                updatePlayerSelection();
+            }
+        };
+
+        // Fonctions utilitaires
+        function updatePlayerSelection() {
+            const playerItems = availablePlayersList.getElementsByClassName('player-item');
+            Array.from(playerItems).forEach(item => {
+                item.classList.remove('selected');
+                item.onclick = () => {
+                    selectedPlayer = item.dataset.playerId;
+                    Array.from(playerItems).forEach(p => p.classList.remove('selected'));
+                    item.classList.add('selected');
+                    confirmPickBtn.disabled = false;
+                };
+            });
+        }
+
+        // Gestionnaires d'événements Socket.IO
+        socket.on('draft_update', (data) => {
+            // Créer un conteneur temporaire pour les nouveaux joueurs
+            const tempContainer = document.createElement('div');
+            tempContainer.innerHTML = data.availablePlayers.map((player, index) => `
+                <div class="player-item" data-player-id="${player.id}" style="animation-delay: ${index * 0.05}s">
+                    <strong>${player.name}</strong>
+                    <div class="player-stats">${player.position} - ${player.stats}</div>
+                </div>
+            `).join('');
+
+            // Faire disparaître les anciens joueurs
+            const oldPlayers = availablePlayersList.children;
+            Array.from(oldPlayers).forEach((player, index) => {
+                player.style.animation = `fadeOut 0.3s ease forwards ${index * 0.05}s`;
+            });
+
+            // Attendre que l'animation de disparition soit terminée
+            setTimeout(() => {
+                // Vider la liste et ajouter les nouveaux joueurs
+                availablePlayersList.innerHTML = tempContainer.innerHTML;
+                updatePlayerSelection();
+            }, oldPlayers.length * 50 + 300);
+
+            // Mise à jour du draft board avec animation
+            draftBoard.innerHTML = data.teams.map((team, teamIndex) => `
+                <div class="team-card" style="animation: fadeInUp 0.5s ease forwards ${teamIndex * 0.1}s">
+                    <div class="team-header">
+                        <img src="/${team.logo_url}" alt="${team.name} logo" class="team-logo">
+                        <h3 class="team-name">${team.name}</h3>
+                    </div>
+                    <div class="team-picks">
+                        ${team.players.map((player, playerIndex) => `
+                            <div class="player-pick" style="animation: slideIn 0.5s ease forwards ${(teamIndex * 0.1 + playerIndex * 0.05)}s">
+                                <span class="pick-round">R${Math.floor(playerIndex/data.teams.length) + 1}</span>
+                                <span class="pick-name">${player.name}</span>
+                                <span class="pick-pos">${player.position}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        });
+
+        socket.on('draft_teams', (data) => {
+            const currentTeam = data.current ? data.current.name : 'En attente...';
+            const nextTeam = data.next ? data.next.name : 'En attente...';
+            currentTeamDisplay.innerHTML = `
+                <strong>Tour Actuel:</strong> ${currentTeam}<br>
+                <strong>Prochain:</strong> ${nextTeam}
+            `;
+        });
+
+        socket.on('draft_pick', (data) => {
+            showAnnouncement(`
+                <h2 style="color: #ffd700; margin-bottom: 15px">Pick #${data.pickNumber}</h2>
+                <p style="font-size: 1.2em">${data.team} sélectionne</p>
+                <p style="font-size: 1.5em; color: #ffd700; margin: 10px 0">${data.player}</p>
+            `);
+        });
+
+        socket.on('draft_complete', () => {
+            showAnnouncement(`
+                <h2 style="color: #ffd700; margin-bottom: 15px">Draft Terminé!</h2>
+                <p style="font-size: 1.2em">Redirection vers la page de saison...</p>
+            `, 3000);
+            setTimeout(() => {
+                window.location.href = '/season';
+            }, 3000);
+        });
+
+        socket.on('draft_reset', () => {
+            // Réinitialiser l'interface
+            availablePlayersList.innerHTML = '';
+            draftBoard.innerHTML = '';
+            currentTeamDisplay.textContent = 'En attente du début du draft...';
+            startDraftBtn.disabled = false;
+        });
+
+        socket.on('chat_message', (data) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${data.user === 'Admin' ? 'admin' : ''}`;
+            messageDiv.textContent = `${data.user}: ${data.message}`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+
+        function showAnnouncement(message, duration = 3000) {
+            announcement.innerHTML = message;
+            announcement.classList.add('active');
+            setTimeout(() => {
+                announcement.classList.remove('active');
+            }, duration);
+        }
+
+        // Gestionnaire pour le bouton de réinitialisation
+        resetDraftBtn.onclick = () => {
+            resetModal.classList.add('active');
+        };
+
+        // Confirmation de réinitialisation
+        confirmResetBtn.onclick = () => {
+            socket.emit('reset_draft');
+            resetModal.classList.remove('active');
+            showAnnouncement('Draft réinitialisé avec succès', 3000);
+        };
+
+        // Annulation de la réinitialisation
+        cancelResetBtn.onclick = () => {
+            resetModal.classList.remove('active');
+        };
+
+        sendMessageBtn.onclick = () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                socket.emit('chat_message', { message });
+                chatInput.value = '';
+            }
+        };
+
+        chatInput.onkeypress = (e) => {
+            if (e.key === 'Enter') {
+                sendMessageBtn.click();
+            }
+        };
+    </script>
+</body>
+</html>
