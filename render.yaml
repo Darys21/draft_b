@@ -9,3 +9,9 @@ services:
         value: 3.11.0
       - key: PORT
         value: 10000
+      - key: RENDER_DB_PATH
+        value: /data
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

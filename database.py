@@ -3,21 +3,26 @@ import os
 
 class Database:
     def __init__(self):
-        self.db_path = "draft.db"
-        self.initialize_database()
+        # Utiliser un dossier persistant sur Render
+        self.db_dir = os.environ.get('RENDER_DB_PATH', '.')
+        os.makedirs(self.db_dir, exist_ok=True)
+        self.db_path = os.path.join(self.db_dir, "draft.db")
+        
+        # Initialiser la base de données seulement si elle n'existe pas
+        if not os.path.exists(self.db_path):
+            self.initialize_database()
+        
+        # Vérifier si les tables sont vides et les initialiser si nécessaire
+        self.initialize_data_if_empty()
 
     def initialize_database(self):
         """Initialise la base de données si elle n'existe pas"""
-        # Supprimer la base de données existante pour éviter les conflits
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
-
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
         # Créer la table des équipes
         c.execute('''
-            CREATE TABLE teams (
+            CREATE TABLE IF NOT EXISTS teams (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 logo_url TEXT
@@ -26,7 +31,7 @@ class Database:
 
         # Créer la table des joueurs
         c.execute('''
-            CREATE TABLE players (
+            CREATE TABLE IF NOT EXISTS players (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 position TEXT,
@@ -37,56 +42,67 @@ class Database:
             )
         ''')
 
-        # Insérer les équipes
-        teams = [
-            (1, "WILD HOOPS", "wildhoops.jpg"),
-            (2, "THE UNDEFEATED", "theundefeated.jpg"),
-            (3, "Fear of God Athletics", "fearofgod.jpg"),
-            (4, "Ours Boys Academy", "oursboysacademy.jpg")
-        ]
-        c.executemany('INSERT INTO teams VALUES (?,?,?)', teams)
+        conn.commit()
+        conn.close()
 
-        # Insérer les joueurs TOP 12
-        top_players = [
-            (1, "Ousmane", "SF", "PPG: 22.5, RPG: 6.8", 1, None),
-            (2, "Isaac", "PG", "PPG: 18.3, APG: 7.5", 1, None),
-            (3, "Rodrigue", "SG", "PPG: 20.1, RPG: 4.2", 1, None),
-            (4, "Paul", "PF", "PPG: 16.8, RPG: 9.3", 1, None),
-            (5, "Joan", "C", "PPG: 15.5, RPG: 11.2", 1, None),
-            (6, "Léo", "PG", "PPG: 17.9, APG: 6.8", 1, None),
-            (7, "Felipe", "SF", "PPG: 19.2, RPG: 5.5", 1, None),
-            (8, "Kevin", "SG", "PPG: 21.3, RPG: 4.7", 1, None),
-            (9, "Charlin", "PF", "PPG: 17.5, RPG: 8.9", 1, None),
-            (10, "Christo", "C", "PPG: 14.8, RPG: 10.5", 1, None),
-            (11, "Arfan", "PG", "PPG: 16.9, APG: 8.2", 1, None),
-            (12, "Assane", "SF", "PPG: 18.7, RPG: 6.3", 1, None)
-        ]
-        c.executemany('INSERT INTO players VALUES (?,?,?,?,?,?)', top_players)
-        # Insérer les joueurs BOTTOM 20
-        bottom_players = [
-            (13, "Pascal", "PG", "PPG: 11.2, APG: 4.5", 0, None),
-            (14, "Malick Charles", "SG", "PPG: 10.5, RPG: 3.2", 0, None),
-            (15, "Marco Milwaukee", "SG", "PPG: 15.3, RPG: 4.2", 0, None),
-            (16, "NTOUTOUME Claude-Engel", "SF", "PPG: 13.8, RPG: 5.5", 0, None),
-            (17, "Carlisme", "PF", "PPG: 12.5, RPG: 7.3", 0, None),
-            (18, "Glenn MEYO", "C", "PPG: 11.2, RPG: 8.8", 0, None),
-            (19, "Kevin Huchard", "PG", "PPG: 13.9, APG: 6.2", 0, None),
-            (20, "Mayeul Adéola SANNY", "SG", "PPG: 14.7, RPG: 3.9", 0, None),
-            (21, "Mael-Olivier", "SF", "PPG: 12.8, RPG: 4.5", 0, None),
-            (22, "Marc", "PF", "PPG: 11.5, RPG: 6.8", 0, None),
-            (23, "Kevin Mesmero", "C", "PPG: 10.8, RPG: 7.9", 0, None),
-            (24, "Jordan", "PG", "PPG: 13.2, APG: 5.5", 0, None),
-            (25, "Cagil", "SG", "PPG: 12.9, RPG: 3.8", 0, None),
-            (26, "Etima benoit", "SF", "PPG: 11.7, RPG: 4.2", 0, None),
-            (27, "Levi", "PF", "PPG: 10.5, RPG: 6.5", 0, None),
-            (28, "Alexandre Ngoua", "C", "PPG: 9.8, RPG: 7.2", 0, None),
-            (29, "Alpha", "PG", "PPG: 12.4, APG: 4.8", 0, None),
-            (30, "Joel AMB", "SG", "PPG: 11.9, RPG: 3.5", 0, None),
-            (31, "Marcelino", "SF", "PPG: 10.8, RPG: 4.1", 0, None),
-            (32, "Rodney", "PF", "PPG: 9.5, RPG: 5.8", 0, None)
-        ]
-        c.executemany('INSERT INTO players VALUES (?,?,?,?,?,?)', bottom_players)
-
+    def initialize_data_if_empty(self):
+        """Initialise les données par défaut si les tables sont vides"""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        
+        # Vérifier si la table teams est vide
+        c.execute("SELECT COUNT(*) FROM teams")
+        teams_count = c.fetchone()[0]
+        
+        if teams_count == 0:
+            # Insérer les équipes par défaut
+            teams_data = [
+                (1, "WILD HOOPS", "wildhoops.jpg"),
+                (2, "THE UNDEFEATED", "theundefeated.jpg"),
+                (3, "Fear of God Athletics", "fearofgod.jpg"),
+                (4, "Ours Boys Academy", "oursboysacademy.jpg")
+            ]
+            c.executemany("INSERT INTO teams (id, name, logo_url) VALUES (?, ?, ?)", teams_data)
+            
+            # Insérer les joueurs par défaut
+            top_players = [
+                (1, "Ousmane", "SF", "PPG: 22.5, RPG: 6.8", 1, None),
+                (2, "Isaac", "PG", "PPG: 18.3, APG: 7.5", 1, None),
+                (3, "Rodrigue", "SG", "PPG: 20.1, RPG: 4.2", 1, None),
+                (4, "Paul", "PF", "PPG: 16.8, RPG: 9.3", 1, None),
+                (5, "Joan", "C", "PPG: 15.5, RPG: 11.2", 1, None),
+                (6, "Léo", "PG", "PPG: 17.9, APG: 6.8", 1, None),
+                (7, "Felipe", "SF", "PPG: 19.2, RPG: 5.5", 1, None),
+                (8, "Kevin", "SG", "PPG: 21.3, RPG: 4.7", 1, None),
+                (9, "Charlin", "PF", "PPG: 17.5, RPG: 8.9", 1, None),
+                (10, "Christo", "C", "PPG: 14.8, RPG: 10.5", 1, None),
+                (11, "Arfan", "PG", "PPG: 16.9, APG: 8.2", 1, None),
+                (12, "Assane", "SF", "PPG: 18.7, RPG: 6.3", 1, None)
+            ]
+            bottom_players = [
+                (13, "Pascal", "PG", "PPG: 11.2, APG: 4.5", 0, None),
+                (14, "Malick Charles", "SG", "PPG: 10.5, RPG: 3.2", 0, None),
+                (15, "Marco Milwaukee", "SG", "PPG: 15.3, RPG: 4.2", 0, None),
+                (16, "NTOUTOUME Claude-Engel", "SF", "PPG: 13.8, RPG: 5.5", 0, None),
+                (17, "Carlisme", "PF", "PPG: 12.5, RPG: 7.3", 0, None),
+                (18, "Glenn MEYO", "C", "PPG: 11.2, RPG: 8.8", 0, None),
+                (19, "Kevin Huchard", "PG", "PPG: 13.9, APG: 6.2", 0, None),
+                (20, "Mayeul Adéola SANNY", "SG", "PPG: 14.7, RPG: 3.9", 0, None),
+                (21, "Mael-Olivier", "SF", "PPG: 12.8, RPG: 4.5", 0, None),
+                (22, "Marc", "PF", "PPG: 11.5, RPG: 6.8", 0, None),
+                (23, "Kevin Mesmero", "C", "PPG: 10.8, RPG: 7.9", 0, None),
+                (24, "Jordan", "PG", "PPG: 13.2, APG: 5.5", 0, None),
+                (25, "Cagil", "SG", "PPG: 12.9, RPG: 3.8", 0, None),
+                (26, "Etima benoit", "SF", "PPG: 11.7, RPG: 4.2", 0, None),
+                (27, "Levi", "PF", "PPG: 10.5, RPG: 6.5", 0, None),
+                (28, "Alexandre Ngoua", "C", "PPG: 9.8, RPG: 7.2", 0, None),
+                (29, "Alpha", "PG", "PPG: 12.4, APG: 4.8", 0, None),
+                (30, "Joel AMB", "SG", "PPG: 11.9, RPG: 3.5", 0, None),
+                (31, "Marcelino", "SF", "PPG: 10.8, RPG: 4.1", 0, None),
+                (32, "Rodney", "PF", "PPG: 9.5, RPG: 5.8", 0, None)
+            ]
+            c.executemany("INSERT INTO players (id, name, position, stats, is_top12, team_id) VALUES (?, ?, ?, ?, ?, ?)", top_players + bottom_players)
+        
         conn.commit()
         conn.close()
 
