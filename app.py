@@ -16,15 +16,18 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 app.config['SECRET_KEY'] = 'votre_clé_secrète'
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Configuration Socket.IO avec gestion des erreurs
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
-                   async_mode='gevent',
+                   async_mode='gevent_websocket',
                    logger=True,
                    engineio_logger=True,
-                   ping_timeout=60)
+                   ping_timeout=60,
+                   ping_interval=25,
+                   max_http_buffer_size=1e8,
+                   manage_session=False)
 
 # Configuration admin
 ADMIN_USERNAME = "admin"
@@ -250,6 +253,12 @@ def update_current_team():
         'current': current_team,
         'next': next_team
     }, broadcast=True)
+
+# Gestion des erreurs WebSocket
+@socketio.on_error_default
+def default_error_handler(e):
+    logger.error(f'WebSocket error: {str(e)}')
+    emit('error', {'error': str(e)})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

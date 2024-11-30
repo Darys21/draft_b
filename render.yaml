@@ -3,7 +3,7 @@ services:
     name: flask-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class gevent -w 1 --timeout 120 wsgi:app
+    startCommand: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 --timeout 120 wsgi:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
