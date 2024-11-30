@@ -1,26 +1,19 @@
 import sqlite3
 import os
+import json
 
 class Database:
     def __init__(self):
-        # Utiliser un dossier persistant sur Render
-        self.db_dir = os.environ.get('RENDER_DB_PATH', '.')
-        os.makedirs(self.db_dir, exist_ok=True)
-        self.db_path = os.path.join(self.db_dir, "draft.db")
-        
-        # Initialiser la base de données seulement si elle n'existe pas
-        if not os.path.exists(self.db_path):
-            self.initialize_database()
-        
-        # Vérifier si les tables sont vides et les initialiser si nécessaire
+        self.db_path = "draft.db"
+        self.initialize_database()
         self.initialize_data_if_empty()
 
     def initialize_database(self):
-        """Initialise la base de données si elle n'existe pas"""
+        """Initialise la base de données"""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
-        # Créer la table des équipes
+        # Créer la table des équipes si elle n'existe pas
         c.execute('''
             CREATE TABLE IF NOT EXISTS teams (
                 id INTEGER PRIMARY KEY,
@@ -29,16 +22,16 @@ class Database:
             )
         ''')
 
-        # Créer la table des joueurs
+        # Créer la table des joueurs si elle n'existe pas
         c.execute('''
             CREATE TABLE IF NOT EXISTS players (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 position TEXT,
                 stats TEXT,
-                is_top12 BOOLEAN,
+                is_top12 INTEGER,
                 team_id INTEGER,
-                FOREIGN KEY(team_id) REFERENCES teams(id)
+                FOREIGN KEY (team_id) REFERENCES teams(id)
             )
         ''')
 

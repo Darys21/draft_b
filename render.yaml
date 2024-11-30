@@ -3,15 +3,11 @@ services:
     name: flask-app
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class eventlet -w 1 app:app
+    startCommand: gunicorn --worker-class eventlet -w 1 --timeout 120 wsgi:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: PORT
         value: 10000
-      - key: RENDER_DB_PATH
-        value: /data
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
+      - key: WEB_CONCURRENCY
+        value: 1
