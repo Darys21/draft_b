@@ -6,6 +6,7 @@ from database import Database
 from functools import wraps
 import json
 import logging
+import os
 
 # Configuration du logging
 logging.basicConfig(level=logging.DEBUG)
@@ -14,7 +15,13 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 app.config['SECRET_KEY'] = 'votre_clé_secrète'
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Configuration Socket.IO avec gestion des erreurs
+socketio = SocketIO(app, 
+                   cors_allowed_origins="*",
+                   async_mode='eventlet',
+                   logger=True,
+                   engineio_logger=True)
 
 # Configuration admin
 ADMIN_USERNAME = "admin"
@@ -242,4 +249,5 @@ def update_current_team():
     }, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
