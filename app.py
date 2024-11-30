@@ -7,9 +7,8 @@ from functools import wraps
 import json
 import logging
 import os
-import eventlet
-
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 # Configuration du logging
 logging.basicConfig(level=logging.DEBUG)
@@ -22,7 +21,7 @@ CORS(app)
 # Configuration Socket.IO avec gestion des erreurs
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
-                   async_mode='eventlet',
+                   async_mode='gevent',
                    logger=True,
                    engineio_logger=True,
                    ping_timeout=60)
