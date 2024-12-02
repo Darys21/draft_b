@@ -39,21 +39,18 @@ CORS(app, resources={
     }
 })
 
-# Enhanced SocketIO configuration
+# Enhanced WebSocket Configuration
 socketio = SocketIO(
     app, 
     cors_allowed_origins=["https://draft-b.onrender.com", "http://localhost:3000"],
     async_mode='gevent',
-    logger=True, 
-    engineio_logger=True,
+    async_handlers=True,
     ping_timeout=120,
     ping_interval=30,
     max_http_buffer_size=1e8,
-    manage_session=True,
-    cors_credentials=True,
-    cookie='draft_session',
-    # Add session management parameters
-    session_interface=app.session_interface
+    logger=True, 
+    engineio_logger=True,
+    cors_credentials=True
 )
 
 # Configuration admin
@@ -147,33 +144,30 @@ def error_handler(e):
 
 @socketio.on('start_draft')
 def handle_start_draft():
-    if 'admin_logged_in' not in session:
-        logger.warning("Tentative de démarrage du draft sans authentification admin")
-        return
-    
-    global draft
     try:
-        draft = Draft(db)
+        # Validate admin session
+        if 'username' not in session or session['username'] != ADMIN_USERNAME:
+            logger.warning("Unauthorized draft start attempt")
+            emit('draft_error', {'message': 'Unauthorized access'}, broadcast=False)
+            return False
+        
+        # Check draft state before starting
+        if draft.is_draft_active():
+            logger.warning("Draft already in progress")
+            emit('draft_error', {'message': 'Draft is already in progress'}, broadcast=False)
+            return False
+        
+        # Initialize draft
         draft.initialize_draft()
+        draft_state = draft.get_draft_state()
         
-        # Log détaillé de l'initialisation du draft
-        logger.info("Draft initialisé")
-        logger.info(f"Nombre total de joueurs: {len(db.get_available_players())}")
+        # Broadcast draft start to all clients
+        socketio.emit('draft_started', draft_state)
+        logger.info("Draft started successfully")
         
-        emit_draft_state()
-        update_current_team()
-        
-        # Émettre un événement de démarrage du draft
-        socketio.emit('draft_started', {
-            'message': 'Le draft a commencé',
-            'current_round': draft.current_round
-        }, broadcast=True)
     except Exception as e:
-        logger.error(f"Erreur lors du démarrage du draft: {e}", exc_info=True)
-        socketio.emit('error', {
-            'message': 'Impossible de démarrer le draft',
-            'details': str(e)
-        })
+        logger.error(f"Error starting draft: {str(e)}", exc_info=True)
+        emit('draft_error', {'message': 'Failed to start draft'}, broadcast=False)
 
 @socketio.on('make_pick')
 def handle_make_pick(data):

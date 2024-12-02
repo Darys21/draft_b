@@ -6,9 +6,12 @@ logging.basicConfig(level=logging.DEBUG)
 
 from app import app, socketio
 
-# Configuration pour le WebSocket
-app.config['PROPAGATE_EXCEPTIONS'] = True
-app.config['SECRET_KEY'] = 'votre_clé_secrète_sécurisée'  # Utilisez une clé secrète forte
+# Explicit WebSocket configuration
+app.config['SOCKETIO_ASYNC_MODE'] = 'gevent'
+app.config['SOCKETIO_ASYNC_HANDLERS'] = True
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+else:
+    # For Gunicorn deployment
+    application = app

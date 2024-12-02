@@ -1,13 +1,17 @@
 services:
   - type: web
-    name: flask-app
+    name: draft-b
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class gevent -w 1 --timeout 120 wsgi:app
+    startCommand: gunicorn --worker-class gevent -w 4 wsgi:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: PORT
-        value: 10000
-      - key: WEB_CONCURRENCY
-        value: 1
+        value: 3.11.5
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: 0
+      - key: GUNICORN_WORKERS
+        value: 4
+      - key: GUNICORN_WORKER_CLASS
+        value: gevent
