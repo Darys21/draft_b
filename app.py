@@ -21,7 +21,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # Configuration Socket.IO avec gestion des erreurs
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
-                   async_mode='gevent_websocket',
+                   async_mode='gevent',
                    logger=True,
                    engineio_logger=True,
                    ping_timeout=60,
