@@ -15,7 +15,11 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
-app.config['SECRET_KEY'] = 'votre_clé_secrète'
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = '/tmp/flask_session/'
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SECRET_KEY'] = 'draft_league_secure_key_2024!'  # Clé secrète sécurisée
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Configuration Socket.IO avec gestion des erreurs
@@ -24,10 +28,12 @@ socketio = SocketIO(app,
                    async_mode='gevent',
                    logger=True,
                    engineio_logger=True,
-                   ping_timeout=60,
-                   ping_interval=25,
+                   ping_timeout=120,
+                   ping_interval=30,
                    max_http_buffer_size=1e8,
-                   manage_session=False)
+                   manage_session=True,
+                   cookie='draft_session',
+                   cors_credentials=True)
 
 # Configuration admin
 ADMIN_USERNAME = "admin"

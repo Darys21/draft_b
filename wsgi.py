@@ -8,6 +8,7 @@ from app import app, socketio
 
 # Configuration pour le WebSocket
 app.config['PROPAGATE_EXCEPTIONS'] = True
+app.config['SECRET_KEY'] = 'votre_clé_secrète_sécurisée'  # Utilisez une clé secrète forte
 
 if __name__ == '__main__':
-    socketio.run(app)
+    socketio.run(app, debug=True)
