@@ -2,8 +2,13 @@ services:
   - type: web
     name: draft-b
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class gevent -w 4 wsgi:app
+    buildCommand: |
+      python3 -m venv venv
+      . venv/bin/activate
+      pip install -r requirements.txt
+    startCommand: |
+      . venv/bin/activate
+      gunicorn --worker-class gevent -w 4 wsgi:application
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.5
@@ -15,3 +20,5 @@ services:
         value: 4
       - key: GUNICORN_WORKER_CLASS
         value: gevent
+      - key: SECRET_KEY
+        generateValue: true
