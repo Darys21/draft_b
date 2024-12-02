@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+
+# Environment
+.env
+*.pyc
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
