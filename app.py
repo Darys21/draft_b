@@ -1,39 +1,60 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session
+from datetime import timedelta
+import os
+import logging
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 from draft import Draft
 from database import Database
 from functools import wraps
 import json
-import logging
-import os
 from gevent import monkey
 monkey.patch_all()
 
-# Configuration du logging
-logging.basicConfig(level=logging.DEBUG)
+# Enhanced logging configuration
+logging.basicConfig(level=logging.DEBUG, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = '/tmp/flask_session/'
-app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_USE_SIGNER'] = True
-app.config['SECRET_KEY'] = 'draft_league_secure_key_2024!'  # Clé secrète sécurisée
-CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Configuration Socket.IO avec gestion des erreurs
-socketio = SocketIO(app, 
-                   cors_allowed_origins="*",
-                   async_mode='gevent',
-                   logger=True,
-                   engineio_logger=True,
-                   ping_timeout=120,
-                   ping_interval=30,
-                   max_http_buffer_size=1e8,
-                   manage_session=True,
-                   cookie='draft_session',
-                   cors_credentials=True)
+# Session and security configurations
+app.config.update(
+    SECRET_KEY=os.urandom(32),
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
+    SESSION_TYPE='filesystem',
+    SESSION_FILE_DIR='/tmp/flask_session/',
+    SESSION_PERMANENT=False,
+    SESSION_USE_SIGNER=True
+)
+
+# More robust CORS configuration
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://draft-b.onrender.com", "http://localhost:3000"],
+        "supports_credentials": True
+    }
+})
+
+# Enhanced SocketIO configuration
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins=["https://draft-b.onrender.com", "http://localhost:3000"],
+    async_mode='gevent',
+    logger=True, 
+    engineio_logger=True,
+    ping_timeout=120,
+    ping_interval=30,
+    max_http_buffer_size=1e8,
+    manage_session=True,
+    cors_credentials=True,
+    cookie='draft_session',
+    # Add session management parameters
+    session_interface=app.session_interface
+)
 
 # Configuration admin
 ADMIN_USERNAME = "admin"
@@ -93,21 +114,36 @@ def season():
 
 @socketio.on('connect')
 def handle_connect():
-    logger.info('Client connected')
     try:
-        # Vérifier l'état initial de la base de données
-        teams = db.get_teams()
-        available_players = db.get_available_players()
+        logger.info(f"New WebSocket connection established: {request.sid}")
         
-        logger.info(f"Connected - Teams count: {len(teams)}, Available players: {len(available_players)}")
+        # Validate session and authentication
+        if 'username' not in session:
+            logger.warning("Unauthenticated connection attempt")
+            return False
         
-        if draft:
-            emit_draft_state()
-        else:
-            logger.warning("Draft not initialized on connect")
+        # Retrieve draft state
+        draft_state = draft.get_draft_state()
+        logger.info(f"Connected - Teams count: {len(draft_state['teams'])}, Available players: {len(draft_state['available_players'])}")
+        
+        # Emit initial draft state to client
+        emit('draft_state', draft_state)
+        
     except Exception as e:
-        logger.error(f"Error during connect: {e}", exc_info=True)
-        socketio.emit('error', {'message': 'Erreur lors de la connexion'})
+        logger.error(f"Connection error: {str(e)}", exc_info=True)
+        return False
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    try:
+        logger.info(f"WebSocket disconnection: {request.sid}")
+        # Optional: Perform cleanup or logging
+    except Exception as e:
+        logger.error(f"Disconnection error: {str(e)}", exc_info=True)
+
+@socketio.on_error()
+def error_handler(e):
+    logger.error(f"SocketIO Error: {str(e)}", exc_info=True)
 
 @socketio.on('start_draft')
 def handle_start_draft():
