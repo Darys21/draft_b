@@ -12,10 +12,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-from app import create_app, socketio
-
-# Create the Flask app
-app = create_app()
+from app import app, socketio
 
 # Explicit WebSocket configuration
 app.config['SOCKETIO_ASYNC_MODE'] = 'gevent'

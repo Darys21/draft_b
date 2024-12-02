@@ -82,7 +82,9 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Expose app for Gunicorn compatibility
+app = create_app()
+
 # If this file is run directly, create and run the app
 if __name__ == '__main__':
-    app = create_app()
     socketio.run(app, debug=True)
