@@ -87,51 +87,91 @@ def season():
 
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
-    if draft:
-        emit_draft_state()
+    logger.info('Client connected')
+    try:
+        # Vérifier l'état initial de la base de données
+        teams = db.get_teams()
+        available_players = db.get_available_players()
+        
+        logger.info(f"Connected - Teams count: {len(teams)}, Available players: {len(available_players)}")
+        
+        if draft:
+            emit_draft_state()
+        else:
+            logger.warning("Draft not initialized on connect")
+    except Exception as e:
+        logger.error(f"Error during connect: {e}", exc_info=True)
+        socketio.emit('error', {'message': 'Erreur lors de la connexion'})
 
 @socketio.on('start_draft')
 def handle_start_draft():
     if 'admin_logged_in' not in session:
+        logger.warning("Tentative de démarrage du draft sans authentification admin")
         return
     
     global draft
-    draft = Draft(db)
-    draft.initialize_draft()
-    emit_draft_state()
-    update_current_team()
+    try:
+        draft = Draft(db)
+        draft.initialize_draft()
+        
+        # Log détaillé de l'initialisation du draft
+        logger.info("Draft initialisé")
+        logger.info(f"Nombre total de joueurs: {len(db.get_available_players())}")
+        
+        emit_draft_state()
+        update_current_team()
+        
+        # Émettre un événement de démarrage du draft
+        socketio.emit('draft_started', {
+            'message': 'Le draft a commencé',
+            'current_round': draft.current_round
+        }, broadcast=True)
+    except Exception as e:
+        logger.error(f"Erreur lors du démarrage du draft: {e}", exc_info=True)
+        socketio.emit('error', {
+            'message': 'Impossible de démarrer le draft',
+            'details': str(e)
+        })
 
 @socketio.on('make_pick')
 def handle_make_pick(data):
     if 'admin_logged_in' not in session:
+        logger.warning("Tentative de pick sans authentification admin")
         return
         
     global draft
     if not draft:
+        logger.warning("Tentative de pick sans draft initialisé")
         return
 
     player_id = data.get('player_id')
     if not player_id:
+        logger.warning("Aucun ID de joueur fourni")
         return
 
-    # Obtenir l'équipe actuelle
-    current_team_id = draft.get_current_team()
-    if not current_team_id:
-        return
+    try:
+        # Obtenir l'équipe actuelle
+        current_team_id = draft.get_current_team()
+        if not current_team_id:
+            logger.warning("Aucune équipe courante trouvée")
+            return
 
-    # Obtenir les informations de l'équipe
-    current_team = next((t for t in db.get_teams() if t['id'] == current_team_id), None)
-    if not current_team:
-        return
+        # Obtenir les informations de l'équipe
+        current_team = next((t for t in db.get_teams() if t['id'] == current_team_id), None)
+        if not current_team:
+            logger.warning(f"Équipe non trouvée pour l'ID {current_team_id}")
+            return
 
-    success = draft.make_pick(current_team_id, player_id)
-    if success:
-        # Récupérer les informations du joueur
-        player = next((p for p in db.get_available_players() + sum([db.get_team_players(t['id']) for t in db.get_teams()], []) 
-                      if p['id'] == int(player_id)), None)
-        
-        if player:
+        # Vérifier si le joueur est disponible
+        available_players = db.get_available_players()
+        player = next((p for p in available_players if p['id'] == int(player_id)), None)
+        if not player:
+            logger.warning(f"Joueur {player_id} non disponible")
+            return
+
+        # Effectuer le pick
+        success = draft.make_pick(current_team_id, player_id)
+        if success:
             # Annoncer le pick
             pick_data = {
                 'team': current_team['name'],
@@ -141,18 +181,33 @@ def handle_make_pick(data):
                 'player_id': player_id,
                 'team_id': current_team_id
             }
-            emit('draft_pick', pick_data, broadcast=True)
+            socketio.emit('draft_pick', pick_data, broadcast=True)
+            logger.info(f"Pick effectué : {current_team['name']} a sélectionné {player['name']}")
 
             # Vérifier si le draft est terminé
             available_players = db.get_available_players()
             if not available_players:
-                emit('draft_complete', broadcast=True)
+                socketio.emit('draft_complete', broadcast=True)
+                logger.info("Draft terminé")
 
             # Mettre à jour l'état du draft
             emit_draft_state()
             
             # Passer à l'équipe suivante
             update_current_team()
+        else:
+            logger.warning(f"Échec du pick pour le joueur {player_id}")
+            socketio.emit('error', {
+                'message': 'Impossible de sélectionner ce joueur',
+                'player_id': player_id
+            })
+
+    except Exception as e:
+        logger.error(f"Erreur lors du pick : {e}", exc_info=True)
+        socketio.emit('error', {
+            'message': 'Erreur lors de la sélection du joueur',
+            'details': str(e)
+        })
 
 @socketio.on('reset_draft')
 def handle_reset_draft():
@@ -183,53 +238,48 @@ def handle_chat_message(data):
 
 def emit_draft_state():
     if not draft:
+        logger.warning("Draft is not initialized")
         return
 
-    # Récupérer tous les picks avec les informations complètes
-    picks_with_info = []
-    for pick in draft.picks:
-        team = next((t for t in db.get_teams() if t['id'] == pick['team_id']), None)
-        player = next((p for p in db.get_available_players() + sum([db.get_team_players(t['id']) for t in db.get_teams()], [])
-                      if p['id'] == pick['player_id']), None)
-        if team and player:
-            picks_with_info.append({
-                'team_id': team['id'],
-                'team_name': team['name'],
-                'player_id': player['id'],
-                'player_name': player['name'],
-                'pick_number': len(picks_with_info) + 1
-            })
+    try:
+        # Récupérer tous les picks
+        picks_with_info = []
+        for pick in draft.picks:
+            team = next((t for t in db.get_teams() if t['id'] == pick['team_id']), None)
+            player = next((p for p in db.get_available_players() + sum([db.get_team_players(t['id']) for t in db.get_teams()], [])
+                          if p['id'] == pick['player_id']), None)
+            if team and player:
+                picks_with_info.append({
+                    'team_id': team['id'],
+                    'team_name': team['name'],
+                    'player_id': player['id'],
+                    'player_name': player['name'],
+                    'pick_number': len(picks_with_info) + 1
+                })
 
-    # Log des informations des équipes
-    teams = db.get_teams()
-    logger.debug(f"Teams data: {json.dumps(teams, indent=2)}")
+        # Récupérer les joueurs disponibles
+        available_players = db.get_available_players()
+        logger.info(f"Available players: {len(available_players)}")
 
-    # Récupérer les joueurs par équipe
-    teams_with_players = []
-    for team in teams:
-        team_players = db.get_team_players(team['id'])
-        team_data = {
-            'id': team['id'],
-            'name': team['name'],
-            'logo_url': team['logo_url'],
-            'players': team_players
+        # Récupérer l'équipe actuelle
+        current_team_id = draft.get_current_team()
+        current_team = next((t for t in db.get_teams() if t['id'] == current_team_id), None)
+
+        # Préparer les données à émettre
+        draft_state = {
+            'picks': picks_with_info,
+            'available_players': available_players,
+            'current_team': current_team,
+            'current_round': draft.current_round
         }
-        teams_with_players.append(team_data)
-        logger.debug(f"Team {team['name']} data: {json.dumps(team_data, indent=2)}")
 
-    draft_data = {
-        'teams': teams_with_players,
-        'availablePlayers': db.get_available_players(),
-        'draftState': {
-            'phase': 'TOP12' if len(draft.picks) < 12 else 'BOTTOM20',
-            'current_round': draft.current_round,
-            'picks': picks_with_info
-        },
-        'is_admin': 'admin_logged_in' in session
-    }
-    
-    logger.debug(f"Emitting draft_update with data: {json.dumps(draft_data, indent=2)}")
-    emit('draft_update', draft_data, broadcast=True)
+        # Émettre l'état complet du draft
+        socketio.emit('draft_state', draft_state)
+        logger.info("Draft state emitted successfully")
+
+    except Exception as e:
+        logger.error(f"Error in emit_draft_state: {e}", exc_info=True)
+        socketio.emit('error', {'message': 'Erreur lors de la récupération de l\'état du draft'})
 
 def update_current_team():
     if not draft:
