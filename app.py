@@ -87,4 +87,8 @@ app = create_app()
 
 # If this file is run directly, create and run the app
 if __name__ == '__main__':
+    # Development
     socketio.run(app, debug=True)
+else:
+    # Production
+    socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
