@@ -16,6 +16,14 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Socket.IO event handlers
+def handle_connect():
+    logger.info('Client connected')
+    emit('connection_response', {'data': 'Connected'})
+
+def handle_disconnect():
+    logger.info('Client disconnected')
+
 # Application Factory Pattern
 def create_app():
     # Create Flask app
@@ -63,6 +71,10 @@ def create_app():
         cors_credentials=True
     )
 
+    # Register Socket.IO event handlers
+    socketio.on_event('connect', handle_connect)
+    socketio.on_event('disconnect', handle_disconnect)
+
     # Import and register routes
     from routes import register_routes
     register_routes(app, socketio, db, draft)
@@ -85,10 +97,5 @@ def admin_required(f):
 # Expose app for Gunicorn compatibility
 app = create_app()
 
-# If this file is run directly, create and run the app
 if __name__ == '__main__':
-    # Development
     socketio.run(app, debug=True)
-else:
-    # Production
-    socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
