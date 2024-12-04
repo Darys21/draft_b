@@ -8,8 +8,8 @@ from draft import Draft
 from database import Database
 from functools import wraps
 import json
-from gevent import monkey
-monkey.patch_all()
+import eventlet
+eventlet.monkey_patch()
 
 # Enhanced logging configuration
 logging.basicConfig(level=logging.DEBUG, 
@@ -61,7 +61,7 @@ def create_app():
     socketio = SocketIO(
         app, 
         cors_allowed_origins=["https://draft-b.onrender.com", "http://localhost:3000"],
-        async_mode='gevent',
+        async_mode='eventlet',
         async_handlers=True,
         ping_timeout=120,
         ping_interval=30,
